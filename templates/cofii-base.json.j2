@@ -42,6 +42,16 @@
         "echo \"    StrictHostKeyChecking    no\" >> ~/.ssh/config",
         "echo \"    LogLevel                 ERROR\" >> ~/.ssh/config",
         "echo \"    UserKnownHostsFile       /dev/null\" >> ~/.ssh/config",
+        "sudo sed -i 's,http://archive.ubuntu.com/ubuntu,https://mcpu:{{ env['ARTIFACTORY_TOKEN'] }}@artifactory.chevron.com/ubuntu-remote,g' /etc/apt/sources.list",
+        "sudo sed -i 's,http://security.ubuntu.com/ubuntu,https://mcpu:{{ env['ARTIFACTORY_TOKEN'] }}@artifactory.chevron.com/ubuntu-remote,g' /etc/apt/sources.list",
+        "sudo sed -i '1 i apt_preserve_sources_list: true' /etc/cloud/cloud.cfg",
+        "echo \"channel_alias: https://mcpu:{{ env['ARTIFACTORY_TOKEN'] }}@artifactory.chevron.com/api/conda/conda-remote\" > ~/.condarc",
+        "echo \"channels:\" >> ~/.condarc",
+        "echo \"  - https://mcpu:{{ env['ARTIFACTORY_TOKEN'] }}@artifactory.chevron.com/api/conda/conda-remote\" >> ~/.condarc",
+        "echo \"  - https://mcpu:{{ env['ARTIFACTORY_TOKEN'] }}@artifactory.chevron.com/conda-forge-remote\" >> ~/.condarc",
+        "echo \"default_channels:\" >> ~/.condarc",
+        "echo \"  - https://mcpu:{{ env['ARTIFACTORY_TOKEN'] }}@artifactory.chevron.com/api/conda/conda\" >> ~/.condarc",
+        "echo \"  - https://mcpu:{{ env['ARTIFACTORY_TOKEN'] }}@artifactory.chevron.com/conda-forge-remote\" >> ~/.condarc",
         "echo \"ssl_verify: false\" >> ~/.condarc"
       ]
     },

@@ -17,6 +17,7 @@ jobs:
       SUBNET_NAME: "default"
       COMMIT_SHA: "${{ github.sha }}"
       JULIA_VERSION: "${{ matrix.julia-version }}"
+      ARTIFACTORY_TOKEN: "${{ secrets.ARTIFACTORY_TOKEN }}"
 
     runs-on: ${{ matrix.os }}
 
@@ -31,13 +32,9 @@ jobs:
       - name: Create an SSH Key Pair
         run: ssh-keygen -f /home/runner/.ssh/azmanagers_rsa -N ''
 
-      # - uses: azure/login@v1.1
-      #   with:
-      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
-
       - name: Create Resource Group, Shared Image Gallery, Image Definition, VNet and Subnet
         run: |
-          az login --service-principal   -u "$CLIENT_ID" -p "$CLIENT_SECRET" --tenant "$TENANT_ID"
+          az login --service-principal   -u "$CLIENT_ID" -p "$CLIENT_SECRET" -t "$TENANT_ID"
           az group create                -g "$RESOURCE_GROUP" -l southcentralus 
           az group wait                  -g "$RESOURCE_GROUP" --created 
           az sig create                  -g "$RESOURCE_GROUP" -r "$GALLERY_NAME"
