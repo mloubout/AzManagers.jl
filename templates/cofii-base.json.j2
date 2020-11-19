@@ -59,6 +59,7 @@
       "type": "shell",
       "inline":
       [
+        "echo \"nameserver 8.8.8.8\" | sudo tee /etc/resolv.conf > /dev/null",
         "sudo apt-get -y update",
         "sudo DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=\"--force-confdef\" -o Dpkg::Options::=\"--force-confold\" upgrade",
         "sudo apt-get -y install build-essential mpich libcurl4-openssl-dev emacs-nox nodejs npm git vim",
