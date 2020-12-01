@@ -14,6 +14,7 @@ jobs:
       VM_NAME: "${{ matrix.os }}-${{ matrix.julia-version }}-${{ github.run_id }}-vm"
       PUBLIC_IP_NAME: "${{ matrix.os }}-${{ matrix.julia-version }}-${{ github.run_id }}-pubip"
       VNET_NAME: "${{ matrix.os }}-${{ matrix.julia-version }}-${{ github.run_id }}-vnet"
+      NSG_NAME: "${{ matrix.os }}-${{ matrix.julia-version }}-${{ github.run_id }}-nsg"
       SUBNET_NAME: "default"
       COMMIT_SHA: "${{ github.sha }}"
       JULIA_VERSION: "${{ matrix.julia-version }}"
@@ -31,7 +32,9 @@ jobs:
       - name: Create an SSH Key Pair
         run: ssh-keygen -f /home/runner/.ssh/azmanagers_rsa -N ''
       - name: check ip
-        run: ifconfig eth0 | grep netmask | awk '{ print $2 }'
+        run: |
+          runnerip=$(ifconfig eth0 | grep netmask | awk '{ print $2 }')
+          echo "IP: $runnerip"
 
       # - name: Create Resource Group, Shared Image Gallery, Image Definition, VNet and Subnet
       #   run: |
@@ -41,6 +44,8 @@ jobs:
       #     az sig create                  -g "$RESOURCE_GROUP" -r "$GALLERY_NAME"
       #     az sig image-definition create -g "$RESOURCE_GROUP" -r "$GALLERY_NAME" -i "$IMAGE_NAME" -p "canonical" -f "0001-com-ubuntu-server-focal" -s "20_04-lts" --os-type linux
       #     az network vnet create         -g "$RESOURCE_GROUP" -n "$VNET_NAME" --subnet-name "$SUBNET_NAME"
+      #     az network nsg create          -g "$RESOURCE_GROUP" -n "$NSG_NAME"
+      #     az network nsg rule create     -g "$RESOURCE_GROUP" -n "rule-$NSG_NAME" --nsg-name "$NSG_NAME" --priority 101 --source-address-prefixes 208.130.28.0 --destination-port-ranges 22
 
       # - name: Template the Packer Image file
       #   uses: cuchi/jinja2-action@v1.2.0
