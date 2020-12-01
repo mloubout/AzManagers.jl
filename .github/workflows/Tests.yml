@@ -31,7 +31,7 @@ jobs:
       - name: Create an SSH Key Pair
         run: ssh-keygen -f /home/runner/.ssh/azmanagers_rsa -N ''
       - name: check ip
-        run: ifconfig
+        run: ifconfig eth0 | grep netmask | awk '{ print $2 }'
 
       # - name: Create Resource Group, Shared Image Gallery, Image Definition, VNet and Subnet
       #   run: |
