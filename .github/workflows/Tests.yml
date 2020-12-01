@@ -36,16 +36,18 @@ jobs:
           runnerip=$(ifconfig eth0 | grep netmask | awk '{ print $2 }')
           echo "IP: $runnerip"
 
-      # - name: Create Resource Group, Shared Image Gallery, Image Definition, VNet and Subnet
-      #   run: |
-      #     az login --service-principal   -u "$CLIENT_ID" -p "$CLIENT_SECRET" -t "$TENANT_ID"
-      #     az group create                -g "$RESOURCE_GROUP" -l southcentralus --tags "CostElement=YWED10528906" "CompanyCode=0322" "environment=dev" "OwnerEmail=matthew.chenette@chevron.com"
-      #     az group wait                  -g "$RESOURCE_GROUP" --created 
-      #     az sig create                  -g "$RESOURCE_GROUP" -r "$GALLERY_NAME"
-      #     az sig image-definition create -g "$RESOURCE_GROUP" -r "$GALLERY_NAME" -i "$IMAGE_NAME" -p "canonical" -f "0001-com-ubuntu-server-focal" -s "20_04-lts" --os-type linux
-      #     az network vnet create         -g "$RESOURCE_GROUP" -n "$VNET_NAME" --subnet-name "$SUBNET_NAME"
-      #     az network nsg create          -g "$RESOURCE_GROUP" -n "$NSG_NAME"
-      #     az network nsg rule create     -g "$RESOURCE_GROUP" -n "rule-$NSG_NAME" --nsg-name "$NSG_NAME" --priority 101 --source-address-prefixes 208.130.28.0 --destination-port-ranges 22
+      - name: Create Resource Group, Shared Image Gallery, Image Definition, VNet and Subnet
+        run: |
+          runnerip=$(ifconfig eth0 | grep netmask | awk '{ print $2 }')
+          echo "IP: $runnerip"
+          az login --service-principal   -u "$CLIENT_ID" -p "$CLIENT_SECRET" -t "$TENANT_ID"
+          az group create                -g "$RESOURCE_GROUP" -l southcentralus --tags "CostElement=YWED10528906" "CompanyCode=0322" "environment=dev" "OwnerEmail=matthew.chenette@chevron.com"
+          az group wait                  -g "$RESOURCE_GROUP" --created 
+          az sig create                  -g "$RESOURCE_GROUP" -r "$GALLERY_NAME"
+          az sig image-definition create -g "$RESOURCE_GROUP" -r "$GALLERY_NAME" -i "$IMAGE_NAME" -p "canonical" -f "0001-com-ubuntu-server-focal" -s "20_04-lts" --os-type linux
+          az network vnet create         -g "$RESOURCE_GROUP" -n "$VNET_NAME" --subnet-name "$SUBNET_NAME"
+          az network nsg create          -g "$RESOURCE_GROUP" -n "$NSG_NAME"
+          az network nsg rule create     -g "$RESOURCE_GROUP" -n "rule-$NSG_NAME" --nsg-name "$NSG_NAME" --priority 101 --source-address-prefixes "$runnerip" --destination-port-ranges 22
 
       # - name: Template the Packer Image file
       #   uses: cuchi/jinja2-action@v1.2.0
@@ -85,7 +87,7 @@ jobs:
       # #   with:
       # #     file: lcov.info
 
-      # - name: Delete CI Resource Group
-      #   run: |
-      #     az group delete -n "${{ matrix.os }}-${{ matrix.julia-version }}-${{ github.run_id }}" --yes
-      #   if: ${{ always() }}
+      - name: Delete CI Resource Group
+        run: |
+          az group delete -n "${{ matrix.os }}-${{ matrix.julia-version }}-${{ github.run_id }}" --yes
+        if: ${{ always() }}
