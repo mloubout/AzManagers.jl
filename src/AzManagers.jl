@@ -66,7 +66,7 @@ status(e) = 999
 
 function retrywarn(i, retries, s, e)
     if isa(e, HTTP.ExceptionRequest.StatusError)
-        @debug "$(e.status): $(String(e.response.body)), retry $i of $retries, retrying in $s seconds"
+        @info "$(e.status): $(String(e.response.body)), retry $i of $retries, retrying in $s seconds"
     else
         @warn "warn: $(typeof(e)) -- retry $i, retrying in $s seconds"
     end
@@ -178,7 +178,7 @@ function process_pending_connections()
     manager = azmanager()
     while true
         socket = take!(manager.pending_up)
-        @debug "adding new vm to cluster"
+        @info "adding new vm to cluster"
         addprocs(manager; socket)
     end
 end
@@ -278,6 +278,7 @@ function Distributed.addprocs(template::Dict, n::Int;
     manager = azmanager!(session, nretry, verbose)
     sigimagename,sigimageversion,imagename = scaleset_image(manager, template["value"], sigimagename, sigimageversion, imagename)
     custom_environment = software_sanity_check(manager, imagename == "" ? sigimagename : imagename)
+    @info custom_environment
     ntotal = scaleset_create_or_update(manager, user, subscriptionid, resourcegroup, group, sigimagename, sigimageversion, imagename,
         nretry, template, n, ppi, mpi_ranks_per_worker, mpi_flags, julia_num_threads, omp_num_threads, env, spot, maxprice,
         verbose, custom_environment)
@@ -336,13 +337,13 @@ function _kill(manager::AzManager, id::Int, config::WorkerConfig)
 
     # check if we expect the scale-set to be marked for deletion
     if manager.scaleset_count[(config.userdata["subscriptionid"],config.userdata["resourcegroup"],config.userdata["scalesetname"])] == 0
-        @debug "rmprocs: scaleset is marked for deletion"
+        @info "rmprocs: scaleset is marked for deletion"
         return nothing
     end
 
     # check if the vm was removed without the help of AzManagers (e.g. a SPOT instance that we did not catch in time)
     if !is_vm_in_scaleset(manager, config)
-        @debug "rmprocs: vm is not in scale-set"
+        @info "rmprocs: vm is not in scale-set"
         if haskey(Distributed.map_pid_wrkr, id)
             w = Distributed.map_pid_wrkr[id]
             Distributed.set_worker_state(w, Distributed.W_TERMINATED)
@@ -350,7 +351,7 @@ function _kill(manager::AzManager, id::Int, config::WorkerConfig)
         return nothing
     end
 
-    @debug "posting delete request for id=$id"
+    @info "posting delete request for id=$id"
     @retry manager.nretry azrequest(
         "POST",
         manager.verbose,
@@ -374,14 +375,14 @@ function _kill(manager::AzManager, id::Int, config::WorkerConfig)
             break
         end
         r = JSON.parse(String(_r.body))
-        @debug "instance status for id=$id: $(r["properties"]["provisioningState"])"
+        @info "instance status for id=$id: $(r["properties"]["provisioningState"])"
 
         if r["properties"]["provisioningState"] != "Succeeded"
             break
         end
         sleep(60+10*rand()) # attempt to avoid Azure's hourly rate limit (error 429) -- is there a better way to do this?
     end
-    @debug "Deleting id=$id, pending: done=$(sum([istaskdone(tsk) for tsk in manager.pending_down])+1), total=$(length(manager.pending_down))" # '+1' optimistically includes itself
+    @info "Deleting id=$id, pending: done=$(sum([istaskdone(tsk) for tsk in manager.pending_down])+1), total=$(length(manager.pending_down))" # '+1' optimistically includes itself
 
     nothing
 end
@@ -463,7 +464,7 @@ function Distributed.manage(manager::AzManager, id::Integer, config::WorkerConfi
     if op == :deregister || op == :interrupt
         manager.scaleset_count[(config.userdata["subscriptionid"],config.userdata["resourcegroup"],config.userdata["scalesetname"])] -= 1
         if manager.scaleset_count[(config.userdata["subscriptionid"],config.userdata["resourcegroup"],config.userdata["scalesetname"])] == 0
-            @debug "removing scaleset=$(config.userdata["scalesetname"]) in resourcegroup=$(config.userdata["resourcegroup"]) and subscription=$(config.userdata["subscriptionid"])"
+            @info "removing scaleset=$(config.userdata["scalesetname"]) in resourcegroup=$(config.userdata["resourcegroup"]) and subscription=$(config.userdata["subscriptionid"])"
             rmgroup(manager, config.userdata["subscriptionid"], config.userdata["resourcegroup"], config.userdata["scalesetname"])
         end
     end
@@ -808,7 +809,7 @@ function scaleset_image(manager::AzManager, template, sigimagename, sigimagevers
         end
     end
 
-    @debug "after inspecting the VM  metaddata, imagename=$imagename, sigimagename=$sigimagename, sigimageversion=$sigimageversion"
+    @info "after inspecting the VM  metaddata, imagename=$imagename, sigimagename=$sigimagename, sigimageversion=$sigimageversion"
 
     if imagename != ""
         if haskey(template["properties"], "virtualMachineProfile") # scale-set
@@ -839,9 +840,9 @@ function scaleset_image(manager::AzManager, template, sigimagename, sigimagevers
     end
 
     if haskey(template["properties"], "virtualMachineProfile") # scale-set
-        @debug "using image=$(template["properties"]["virtualMachineProfile"]["storageProfile"]["imageReference"]["id"])"
+        @info "using image=$(template["properties"]["virtualMachineProfile"]["storageProfile"]["imageReference"]["id"])"
     else # vm
-        @debug "using image=$(template["properties"]["storageProfile"]["imageReference"]["id"])"
+        @info "using image=$(template["properties"]["storageProfile"]["imageReference"]["id"])"
     end
 
     sigimagename, sigimageversion, imagename
@@ -858,7 +859,7 @@ function software_sanity_check(manager, imagename)
     end
     branchname = LibGit2.branch(repo)
 
-    @debug "sofware sanity, imagename=$imagename, branchname=$branchname"
+    @info "sofware sanity, imagename=$imagename, branchname=$branchname"
 
     custom_environment = false
     if imagename != branchname
@@ -922,12 +923,13 @@ function buildstartupscript(manager::AzManager, user::String, disk::AbstractStri
         environmentfolder = joinpath(DEPOT_PATH[1], "environments", "v$(VERSION.major).$(VERSION.minor)")
         repo = LibGit2.GitRepo(environmentfolder)
         environmentname = LibGit2.branch(repo)
+
         cmd *= """
         
         sudo su - $user <<EOF
-        cd /home/$user/.julia/environments/v$(VERSION.major).$(VERSION.minor)
+        cd /usr/local/.julia/environments/v$(VERSION.major).$(VERSION.minor)
         git fetch
-        git checkout $environmentname
+        git checkout -f $environmentname
         julia -e 'using Pkg; pkg"instantiate"; pkg"precompile"'
         touch /tmp/julia_instantiate_done
         EOF
@@ -1107,7 +1109,7 @@ function scaleset_listvms(manager::AzManager, subscriptionid, resourcegroup, sca
     scalesetnames = list_scalesets(manager, subscriptionid, resourcegroup, nretry, verbose)
     scalesetname ∉ scalesetnames && return String[]
 
-    @debug "getting network interfaces from scaleset"
+    @info "getting network interfaces from scaleset"
     _r = @retry nretry azrequest(
         "GET",
         verbose,
@@ -1115,7 +1117,7 @@ function scaleset_listvms(manager::AzManager, subscriptionid, resourcegroup, sca
         Dict("Authorization"=>"Bearer $(token(manager.session))"))
     r = JSON.parse(String(_r.body))
     networkinterfaces = getnextlinks!(manager, get(r, "value", []), get(r, "nextLink", ""), nretry, verbose)
-    @debug "done getting network interfaces from scaleset"
+    @info "done getting network interfaces from scaleset"
 
     _r = @retry nretry azrequest(
         "GET",
@@ -1124,7 +1126,7 @@ function scaleset_listvms(manager::AzManager, subscriptionid, resourcegroup, sca
         Dict("Authorization"=>"Bearer $(token(manager.session))"))
     r = JSON.parse(String(_r.body))
     _vms = getnextlinks!(manager, get(r, "value", []), get(r, "nextLink", ""), nretry, verbose)
-    @debug "done getting vms"
+    @info "done getting vms"
 
     networkinterfaces_vmids = [get(get(get(networkinterface, "properties", Dict()), "virtualMachine", Dict()), "id", "") for networkinterface in networkinterfaces]
     vms = Dict{String,String}[]
@@ -1137,7 +1139,7 @@ function scaleset_listvms(manager::AzManager, subscriptionid, resourcegroup, sca
             end
         end
     end
-    @debug "done collating vms and nics"
+    @info "done collating vms and nics"
     vms
 end
 
@@ -1145,8 +1147,8 @@ function scaleset_create_or_update(manager::AzManager, user, subscriptionid, res
         imagename, nretry, template, δn, ppi, mpi_ranks_per_worker, mpi_flags, julia_num_threads, omp_num_threads, env, spot, maxprice, verbose, custom_environment)
     load_manifest()
     ssh_key = _manifest["ssh_public_key_file"]
-
-    @debug "scaleset_create_or_update"
+    @show ssh_key
+    @info "scaleset_create_or_update"
     _r = @retry nretry azrequest(
         "GET",
         verbose,
@@ -1160,7 +1162,6 @@ function scaleset_create_or_update(manager::AzManager, user, subscriptionid, res
 
     key = Dict("path" => "/home/$user/.ssh/authorized_keys", "keyData" => read(ssh_key, String))
     push!(_template["properties"]["virtualMachineProfile"]["osProfile"]["linuxConfiguration"]["ssh"]["publicKeys"], key)
-    
     cmd = buildstartupscript_cluster(manager, ppi, mpi_ranks_per_worker, mpi_flags, julia_num_threads, omp_num_threads, env, user, template["tempdisk"], custom_environment)
     _cmd = base64encode(cmd)
 
@@ -1195,7 +1196,7 @@ function scaleset_create_or_update(manager::AzManager, user, subscriptionid, res
             json(_template,1))
     end
 
-    @debug "about to check quota"
+    @info "about to check quota"
 
     # check usage/quotas
     while true
@@ -1216,7 +1217,7 @@ function scaleset_create_or_update(manager::AzManager, user, subscriptionid, res
         end
     end
 
-    @debug "done checking quota, δn=$(δn), n=$n"
+    @info "done checking quota, δn=$(δn), n=$n"
 
     _template["sku"]["capacity"] = n
     @retry nretry azrequest(
@@ -1532,13 +1533,13 @@ function addproc(vm_template::Dict, nic_template=nothing;
 
     manager = azmanager!(session, nretry, verbose)
 
-    @debug "getting image info"
+    @info "getting image info"
     sigimagename, sigimageversion, imagename = scaleset_image(manager, vm_template["value"], sigimagename, sigimageversion, imagename)
 
-    @debug "software sanity check"
+    @info "software sanity check"
     custom_environment = software_sanity_check(manager, imagename == "" ? sigimagename : imagename)
 
-    @debug "making nic"
+    @info "making nic"
     r = @retry nretry azrequest(
         "PUT",
         verbose,
@@ -1567,7 +1568,7 @@ function addproc(vm_template::Dict, nic_template=nothing;
     vm_template["value"]["properties"]["osProfile"]["customData"] = _cmd
 
     # vm quota check
-    @debug "quota check"
+    @info "quota check"
     while true
         navailable_cores, navailable_cores_spot = quotacheck(manager, subscriptionid, vm_template["value"], 1, nretry, verbose)
         navailable_cores >= 0 && break
@@ -1581,7 +1582,7 @@ function addproc(vm_template::Dict, nic_template=nothing;
         end
     end
 
-    @debug "making vm"
+    @info "making vm"
     r = @retry nretry azrequest(
         "PUT",
         verbose,
@@ -1683,7 +1684,7 @@ function rmproc(vm;
         @warn "Problem removing VM, $vmname, status=$(r.status)"
     end
 
-    @debug "Waiting for VM deletion"
+    @info "Waiting for VM deletion"
     starttime = time()
     elapsed_time = 0.0
     tic = time() - 20
