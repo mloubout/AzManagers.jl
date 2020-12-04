@@ -494,8 +494,10 @@ function azure_worker_init(cookie, master_address, master_port, ppi, mpi_size)
 
     _r = HTTP.request("GET", "http://169.254.169.254/metadata/instance?api-version=2020-06-01", Dict("Metadata"=>"true"); retry=false, redirect=false)
     r = JSON.parse(String(_r.body))
+    ip = r["network"]["interface"][1]["ipv4"]["ipAddress"][1]["publicIpAddress"]
+    isempty(ip) && (ip = string(getipaddr(IPv4)))
     vm = Dict(
-        "bind_addr" => string(getipaddr(IPv4)),
+        "bind_addr" => ip,
         "ppi" => ppi,
         "userdata" => Dict(
             "subscriptionid" => r["compute"]["subscriptionId"],
